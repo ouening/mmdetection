@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -49,27 +50,6 @@ class SCNetRoIHead(CascadeRoIHead):
         if mask_roi_extractor is not None:
             self.mask_roi_extractor = build_roi_extractor(mask_roi_extractor)
             self.mask_head = build_head(mask_head)
-
-    def init_weights(self, pretrained):
-        """Initialize the weights in head.
-
-        Args:
-            pretrained (str, optional): Path to pre-trained weights.
-                Defaults to None.
-        """
-        for i in range(self.num_stages):
-            if self.with_bbox:
-                self.bbox_roi_extractor[i].init_weights()
-                self.bbox_head[i].init_weights()
-        if self.with_mask:
-            self.mask_roi_extractor.init_weights()
-            self.mask_head.init_weights()
-        if self.with_semantic:
-            self.semantic_head.init_weights()
-        if self.with_glbctx:
-            self.glbctx_head.init_weights()
-        if self.with_feat_relay:
-            self.feat_relay_head.init_weights()
 
     @property
     def with_semantic(self):
@@ -358,6 +338,24 @@ class SCNetRoIHead(CascadeRoIHead):
         rcnn_test_cfg = self.test_cfg
 
         rois = bbox2roi(proposal_list)
+
+        if rois.shape[0] == 0:
+            # There is no proposal in the whole batch
+            bbox_results = [[
+                np.zeros((0, 5), dtype=np.float32)
+                for _ in range(self.bbox_head[-1].num_classes)
+            ]] * num_imgs
+
+            if self.with_mask:
+                mask_classes = self.mask_head.num_classes
+                segm_results = [[[] for _ in range(mask_classes)]
+                                for _ in range(num_imgs)]
+                results = list(zip(bbox_results, segm_results))
+            else:
+                results = bbox_results
+
+            return results
+
         for i in range(self.num_stages):
             bbox_head = self.bbox_head[i]
             bbox_results = self._bbox_forward(
@@ -376,12 +374,14 @@ class SCNetRoIHead(CascadeRoIHead):
             ms_scores.append(cls_score)
 
             if i < self.num_stages - 1:
-                bbox_label = [s[:, :-1].argmax(dim=1) for s in cls_score]
-                rois = torch.cat([
-                    bbox_head.regress_by_class(rois[i], bbox_label[i],
-                                               bbox_pred[i], img_metas[i])
-                    for i in range(num_imgs)
-                ])
+                refine_rois_list = []
+                for j in range(num_imgs):
+                    if rois[j].shape[0] > 0:
+                        bbox_label = cls_score[j][:, :-1].argmax(dim=1)
+                        refine_rois = bbox_head.regress_by_class(
+                            rois[j], bbox_label[j], bbox_pred[j], img_metas[j])
+                        refine_rois_list.append(refine_rois)
+                rois = torch.cat(refine_rois_list)
 
         # average scores of each image by stages
         cls_score = [
@@ -497,6 +497,13 @@ class SCNetRoIHead(CascadeRoIHead):
             ms_scores = []
 
             rois = bbox2roi([proposals])
+
+            if rois.shape[0] == 0:
+                # There is no proposal in the single image
+                aug_bboxes.append(rois.new_zeros(0, 4))
+                aug_scores.append(rois.new_zeros(0, 1))
+                continue
+
             for i in range(self.num_stages):
                 bbox_head = self.bbox_head[i]
                 bbox_results = self._bbox_forward(
