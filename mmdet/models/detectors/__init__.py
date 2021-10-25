@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 from .atss import ATSS
 from .autoassign import AutoAssign
 from .base import BaseDetector
@@ -27,6 +28,7 @@ from .retinanet import RetinaNet
 from .rpn import RPN
 from .scnet import SCNet
 from .single_stage import SingleStageDetector
+from .solo import SOLO
 from .sparse_rcnn import SparseRCNN
 from .trident_faster_rcnn import TridentFasterRCNN
 from .two_stage import TwoStageDetector
@@ -42,7 +44,7 @@ __all__ = [
     'MaskRCNN', 'CascadeRCNN', 'HybridTaskCascade', 'RetinaNet', 'FCOS',
     'GridRCNN', 'MaskScoringRCNN', 'RepPointsDetector', 'FOVEA', 'FSAF',
     'NASFCOS', 'PointRend', 'GFL', 'CornerNet', 'PAA', 'YOLOV3', 'YOLACT',
-    'VFNet', 'DETR', 'TridentFasterRCNN', 'SparseRCNN', 'SCNet',
+    'VFNet', 'DETR', 'TridentFasterRCNN', 'SparseRCNN', 'SCNet', 'SOLO',
     'DeformableDETR', 'AutoAssign', 'YOLOF', 'CenterNet', 'YOLOX',
     'TwoStagePanopticSegmentor', 'PanopticFPN'
 ]
